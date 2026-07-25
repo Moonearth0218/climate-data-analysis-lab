@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지구과학 기상 데이터 탐구실</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.mm/"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-[#F7F6F3] text-[#37352F] antialiased min-h-screen flex flex-col">
+
+    <!-- 상단 네비게이션 (Notion 스타일) -->
+    <header class="bg-white border-b border-[#E9E9E7] sticky top-0 z-50 px-6 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <span class="text-xl">🌍</span>
+            <h1 class="font-semibold text-lg text-[#37352F]">지구과학 기상 데이터 탐구실</h1>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span id="auth-status" class="text-xs text-gray-500 mr-2">로그인 필요</span>
+            <button onclick="switchMode('student')" id="btn-student-mode" class="px-3 py-1.5 rounded-md text-sm font-medium bg-[#37352F] text-white transition">학생 화면</button>
+            <button onclick="switchMode('teacher')" id="btn-teacher-mode" class="px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-100 text-[#37352F] transition">교사 대시보드</button>
+            <button id="google-login-btn" onclick="loginWithGoogle()" class="px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition">구글 로그인</button>
+        </div>
+    </header>
+
+    <!-- 메인 컨테이너 -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-6">
+
+        <!-- ================= [학생 화면] ================= -->
+        <div id="student-view" class="space-y-8">
+            <!-- 안내 섹션 -->
+            <div class="bg-white p-6 rounded-lg border border-[#E9E9E7] shadow-sm">
+                <h2 class="text-xl font-bold mb-2">📊 기상 데이터 분석 및 생활 영향 탐구</h2>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    기상청에서 다운로드한 기상 데이터(예: 연도별 월별 폭염일수 등)를 업로드하여 그래프로 시각화하고, 기후 변화의 경향성과 우리 생활에 미치는 영향을 탐구해 봅시다.
+                </p>
+            </div>
+
+            <!-- 1. 기본 정보 및 파일 업로드 -->
+            <div class="bg-white p-6 rounded-lg border border-[#E9E9E7] shadow-sm space-y-4">
+                <h3 class="font-semibold text-base border-b pb-2">1. 기본 정보 및 데이터 업로드</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">학번 및 이름</label>
+                        <input type="text" id="student-info" placeholder="예: 30115 홍길동" class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-black">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">기상청 CSV 파일 업로드</label>
+                        <input type="file" id="csv-file-input" accept=".csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"/>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-400 bg-gray-50 p-3 rounded">
+                    💡 <strong>CSV 파일 형식 안내:</strong> 첫 번째 행은 월별(1월~12월 등), 첫 번째 열은 연도(2016, 2017 등)로 이루어진 표 형태의 CSV 파일이 가장 좋습니다.
+                </div>
+            </div>
+
+            <!-- 2. 그래프 시각화 및 연도 탭 -->
+            <div class="bg-white p-6 rounded-lg border border-[#E9E9E7] shadow-sm space-y-4">
+                <h3 class="font-semibold text-base border-b pb-2">2. 데이터 시각화</h3>
+                <div id="year-tabs" class="flex flex-wrap gap-2 mb-4">
+                    <!-- 연도별 탭이 동적으로 생성됩니다 -->
+                    <span class="text-sm text-gray-400">파일을 업로드하면 연도별 탭이 생성됩니다.</span>
+                </div>
+                <div class="relative h-72 w-full bg-gray-50 rounded p-4">
+                    <canvas id="weatherChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 3. 가이드 질문형 탐구 보고서 -->
+            <div class="bg-white p-6 rounded-lg border border-[#E9E9E7] shadow-sm space-y-6">
+                <h3 class="font-semibold text-base border-b pb-2">3. 탐구 보고서 작성</h3>
+                
+                <div class="space-y-2">
+                    <label class="block text-sm font-semibold text-gray-750">① 그래프에서 관찰되는 특이점이나 경향성은 무엇인가요? (이상치, 특정 시기 집중 현상 등)</label>
+                    <textarea id="q1-answer" rows="3" class="w-full p-3 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="예: 특정 연도(예: 2018년, 2024년)에 8~9월 폭염일수가 급격히 증가하는 경향이 관찰됨."></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-semibold text-gray-750">② 위와 같은 현상이 발생한 기후적·환경적 원인은 무엇이라고 생각하나요? (심화 조사 내용)</label>
+                    <textarea id="q2-answer" rows="3" class="w-full p-3 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="예: 북태평양 고기압과 티베트 고기압이 동시에 확장하면서 한반도 상공에 정체기단이 형성되었기 때문으로 조사됨."></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-semibold text-gray-750">③ 이러한 기후 변화가 우리 생활(농업, 에너지 소비, 건강 등)에 미치는 영향과 대응 방안은 무엇인가요?</label>
+                    <textarea id="q3-answer" rows="3" class="w-full p-3 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="예: 냉방 전력 수요 급증 및 온열 질환자 증가 문제가 발생하며, 이에 대한 도시 열섬 완화 정책이 필요함."></textarea>
+                </div>
+
+                <div class="pt-4 flex justify-end">
+                    <button onclick="submitReport()" class="px-6 py-2.5 bg-[#37352F] text-white rounded-md text-sm font-medium hover:bg-black transition">최종 제출하기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= [교사 대시보드 화면] ================= -->
+        <div id="teacher-view" class="space-y-6 hidden">
+            <div class="bg-white p-6 rounded-lg border border-[#E9E9E7] shadow-sm flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold">👩‍🏫 교사 대시보드</h2>
+                    <p class="text-sm text-gray-600">학생들이 제출한 기상 데이터 분석 보고서를 확인하고 개별 피드백을 남길 수 있습니다.</p>
+                </div>
+                <button onclick="loadSubmissions()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-md transition">새로고침</button>
+            </div>
+
+            <!-- 제출 목록 테이블 -->
+            <div class="bg-white rounded-lg border border-[#E9E9E7] shadow-sm overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-[#E9E9E7] text-xs text-gray-500 uppercase">
+                            <th class="p-4">학번/이름</th>
+                            <th class="p-4">제출 시간</th>
+                            <th class="p-4">탐구 내용 요약</th>
+                            <th class="p-4">관리 및 피드백</th>
+                        </tr>
+                    </thead>
+                    <tbody id="submission-list" class="divide-y divide-[#E9E9E7] text-sm">
+                        <tr>
+                            <td colspan="4" class="p-8 text-center text-gray-400">데이터를 불러오는 중이거나 제출된 내역이 없습니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Firebase SDK 및 로직 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updatedoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDURyiBbY-adOrAI6ZnsLqI13cW95dR5Lw",
+            authDomain: "climate-data-analysis-lab.firebaseapp.com",
+            projectId: "climate-data-analysis-lab",
+            storageBucket: "climate-data-analysis-lab.firebasestorage.app",
+            messagingSenderId: "190687339710",
+            appId: "1:190687339710:web:ca4df028ad3192029e6aef",
+            measurementId: "G-3PFNTDDGK5"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let currentUser = null;
+        let parsedCSVData = [];
+        let weatherChartInstance = null;
+
+        // 전역 함수 연결
+        window.switchMode = function(mode) {
+            const studentView = document.getElementById('student-view');
+            const teacherView = document.getElementById('teacher-view');
+            const btnStudent = document.getElementById('btn-student-mode');
+            const btnTeacher = document.getElementById('btn-teacher-mode');
+
+            if (mode === 'student') {
+                studentView.classList.remove('hidden');
+                teacherView.classList.add('hidden');
+                btnStudent.className = "px-3 py-1.5 rounded-md text-sm font-medium bg-[#37352F] text-white transition";
+                btnTeacher.className = "px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-100 text-[#37352F] transition";
+            } else {
+                studentView.classList.add('hidden');
+                teacherView.classList.remove('hidden');
+                btnTeacher.className = "px-3 py-1.5 rounded-md text-sm font-medium bg-[#37352F] text-white transition";
+                btnStudent.className = "px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-100 text-[#37352F] transition";
+                loadSubmissions();
+            }
+        };
+
+        window.loginWithGoogle = function() {
+            signInWithPopup(auth, provider).catch((error) => {
+                alert("로그인 실패: " + error.message);
+            });
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            const statusEl = document.getElementById('auth-status');
+            const loginBtn = document.getElementById('google-login-btn');
+            if (user) {
+                statusEl.textContent = `${user.displayName}님 로그인됨`;
+                loginBtn.textContent = "로그아웃";
+                loginBtn.onclick = () => auth.signOut();
+            } else {
+                statusEl.textContent = "로그인 필요";
+                loginBtn.textContent = "구글 로그인";
+                loginBtn.onclick = window.loginWithGoogle;
+            }
+        });
+
+        // CSV 파일 파싱 및 연도 탭 생성
+        document.getElementById('csv-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    parsedCSVData = results.data;
+                    setupYearTabs(parsedCSVData);
+                }
+            });
+        });
+
+        function setupYearTabs(data) {
+            const tabsContainer = document.getElementById('year-tabs');
+            tabsContainer.innerHTML = '';
+            
+            if (data.length === 0) return;
+
+            // 첫 번째 열(연도 필드명 추출)
+            const keys = Object.keys(data[0]);
+            const yearKey = keys[0]; 
+
+            data.forEach((row, index) => {
+                const yearValue = row[yearKey];
+                if (!yearValue || isNaN(yearValue)) return; // 연도 데이터가 아니면 패스
+
+                const btn = document.createElement('button');
+                btn.textContent = `${yearValue}년`;
+                btn.className = "px-3 py-1 text-xs rounded border bg-white hover:bg-gray-100 transition";
+                btn.onclick = () => {
+                    document.querySelectorAll('#year-tabs button').forEach(b => b.classList.remove('bg-black', 'text-white'));
+                    btn.classList.add('bg-black', 'text-white');
+                    drawChartForYear(row, keys);
+                };
+                tabsContainer.appendChild(btn);
+
+                // 첫 번째 연도 자동 선택
+                if (index === 0) btn.click();
+            });
+        }
+
+        function drawChartForYear(rowObj, keys) {
+            const months = keys.slice(1, 13); // 1월~12월 컬럼 추출 가정
+            const values = months.map(m => parseFloat(rowObj[m]) || 0);
+
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            if (weatherChartInstance) weatherChartInstance.destroy();
+
+            weatherChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '월별 데이터 값',
+                        data: values,
+                        borderColor: '#37352F',
+                        backgroundColor: 'rgba(55, 53, 47, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // 학생 제출 기능 (Firestore 연동)
+        window.submitReport = async function() {
+            if (!currentUser) {
+                alert("로그인 후 제출해주세요.");
+                return;
+            }
+            const studentInfo = document.getElementById('student-info').value.trim();
+            const q1 = document.getElementById('q1-answer').value.trim();
+            const q2 = document.getElementById('q2-answer').value.trim();
+            const q3 = document.getElementById('q3-answer').value.trim();
+
+            if (!studentInfo || !q1 || !q2 || !q3) {
+                alert("학번/이름 및 모든 탐구 답변을 입력해주세요.");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, "reports"), {
+                    uid: currentUser.uid,
+                    studentInfo: studentInfo,
+                    q1: q1,
+                    q2: q2,
+                    q3: q3,
+                    feedback: "",
+                    createdAt: serverTimestamp()
+                });
+                alert("제출이 완료되었습니다!");
+            } catch (e) {
+                alert("제출 중 오류가 발생했습니다: " + e.message);
+            }
+        };
+
+        // 교사 대시보드 로드
+        window.loadSubmissions = async function() {
+            const listEl = document.getElementById('submission-list');
+            listEl.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-400">데이터 불러오는 중...</td></tr>`;
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "reports"));
+                listEl.innerHTML = "";
+                if (querySnapshot.empty) {
+                    listEl.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-400">제출된 보고서가 없습니다.</td></tr>`;
+                    return;
+                }
+
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50";
+                    tr.innerHTML = `
+                        <td class="p-4 font-medium">${data.studentInfo}</td>
+                        <td class="p-4 text-xs text-gray-500">${data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString() : '방금 전'}</td>
+                        <td class="p-4 text-xs text-gray-600 truncate max-w-xs">${data.q1}</td>
+                        <td class="p-4">
+                            <button onclick="openFeedbackModal('${docSnap.id}', '${data.studentInfo}', '${data.q1}', '${data.q2}', '${data.q3}', '${data.feedback || ''}')" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs transition">피드백 작성</button>
+                        </td>
+                    `;
+                    listEl.appendChild(tr);
+                });
+            } catch (e) {
+                listEl.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-red-500">데이터를 불러오는 권한이 없거나 오류가 발생했습니다.</td></tr>`;
+            }
+        };
+
+        window.openFeedbackModal = function(id, name, q1, q2, q3, currentFeedback) {
+            const feedbackText = prompt(`[${name} 학생의 보고서]\n\n1. 특이점: ${q1}\n2. 원인: ${q2}\n3. 영향: ${q3}\n\n작성할 피드백을 입력하세요:`, currentFeedback);
+            if (feedbackText !== null) {
+                // 피드백 저장 로직 추가 가능
+                alert("피드백이 임시 저장되었습니다. (추가 기능으로 DB 연동 가능)");
+            }
+        };
+    </script>
+</body>
+</html>
