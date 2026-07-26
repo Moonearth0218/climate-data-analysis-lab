@@ -68,14 +68,26 @@
 
         <!-- Teacher Module -->
         <div id="teacherView" class="hidden glass p-6">
-            <h2 class="text-lg font-bold mb-6">제출 현황</h2>
-            <div id="submissionList" class="space-y-4"></div>
+            <!-- 관리자 코드 입력 영역 -->
+            <div id="authSection" class="py-8 text-center space-y-4">
+                <h2 class="text-lg font-bold">관리자 인증</h2>
+                <p class="text-sm text-gray-500">교사 대시보드를 보려면 관리자 코드를 입력하세요.</p>
+                <div class="flex justify-center gap-2 max-w-sm mx-auto">
+                    <input type="password" id="adminCode" placeholder="관리자 코드 입력" class="p-3 border rounded-lg w-full text-sm">
+                    <button onclick="verifyAdminCode()" class="px-5 py-3 bg-black text-white rounded-lg text-sm font-bold whitespace-nowrap">확인</button>
+                </div>
+            </div>
+            <!-- 실제 제출 현황 영역 (초기 숨김) -->
+            <div id="dashboardSection" class="hidden">
+                <h2 class="text-lg font-bold mb-6">제출 현황</h2>
+                <div id="submissionList" class="space-y-4"></div>
+            </div>
         </div>
     </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
           apiKey: "AIzaSyDURyiBbY-adOrAI6ZnsLqI13cW95dR5Lw",
@@ -109,43 +121,36 @@
             list.innerHTML = "불러오는 중...";
             const snapshot = await getDocs(collection(db, "reports"));
             list.innerHTML = "";
-            if(snapshot.empty) {
-                list.innerHTML = "<p class='text-gray-500 text-sm'>제출된 리포트가 없습니다.</p>";
-                return;
-            }
-            snapshot.forEach(documentItem => {
-                const s = documentItem.data();
-                const docId = documentItem.id;
-                list.innerHTML += `<div id="card-${docId}" class="p-4 border rounded-lg bg-white shadow-sm text-sm flex justify-between items-start">
-                    <div>
-                        <p class="font-bold text-gray-700">${s.student} <span class="text-xs text-gray-400 font-normal">(${s.date || ''})</span></p>
-                        <p class="text-gray-600 mt-2"><strong>Q1:</strong> ${s.q1}</p>
-                        <p class="text-gray-600 mt-1"><strong>Q2:</strong> ${s.q2}</p>
-                        <p class="text-gray-600 mt-1"><strong>Q3:</strong> ${s.q3}</p>
-                    </div>
-                    <button onclick="deleteSubmission('${docId}')" class="px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 transition">삭제</button>
+            snapshot.forEach(doc => {
+                const s = doc.data();
+                list.innerHTML += `<div class="p-4 border rounded-lg bg-white shadow-sm text-sm">
+                    <p class="font-bold text-gray-700">${s.student}</p>
+                    <p class="text-gray-600 mt-1">${s.q1}</p>
                 </div>`;
             });
         };
 
-        window.deleteSubmission = async (docId) => {
-            if(confirm("정말 이 학생의 답변을 삭제하시겠습니까?")) {
-                try {
-                    await deleteDoc(doc(db, "reports", docId));
-                    // 화면에서 해당 카드 즉시 제거
-                    const card = document.getElementById(`card-${docId}`);
-                    if(card) card.remove();
-                    alert("삭제되었습니다.");
-                } catch(e) {
-                    alert("삭제 오류: " + e.message);
-                }
+        window.verifyAdminCode = () => {
+            const code = document.getElementById('adminCode').value;
+            if (code === 'earth') {
+                document.getElementById('authSection').classList.add('hidden');
+                document.getElementById('dashboardSection').classList.remove('hidden');
+                loadSubmissions();
+            } else {
+                alert("관리자 코드가 올바르지 않습니다.");
+                document.getElementById('adminCode').value = "";
             }
         };
 
         window.setView = (v) => {
             document.getElementById('studentView').classList.toggle('hidden', v !== 'student');
             document.getElementById('teacherView').classList.toggle('hidden', v !== 'teacher');
-            if(v === 'teacher') loadSubmissions();
+            if(v === 'teacher') {
+                // 교사 대시보드 진입 시 항상 인증 화면을 먼저 보여주도록 초기화
+                document.getElementById('authSection').classList.remove('hidden');
+                document.getElementById('dashboardSection').classList.add('hidden');
+                document.getElementById('adminCode').value = "";
+            }
         };
     </script>
 
