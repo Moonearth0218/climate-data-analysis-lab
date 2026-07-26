@@ -7,24 +7,65 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #f9f9f9; }
-        .glass { background: white; border: 1px solid #e5e5e5; border-radius: 8px; }
-        .tab-btn { padding: 0.5rem 1rem; border-radius: 6px; color: #767676; white-space: nowrap; font-size: 0.8rem; border: 1px solid #eee; }
-        .tab-btn.active { background: #000; color: #fff; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #f9f9f9; color: #37352f; }
+        .glass { background: white; border: 1px solid #e5e5e5; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .tab-btn { padding: 0.6rem 1.2rem; border-radius: 6px; font-size: 0.85rem; border: 1px solid #e5e5e5; background: white; }
+        .tab-btn.active { background: #000; color: #fff; border-color: #000; }
     </style>
 </head>
 <body class="p-8">
     <main class="max-w-4xl mx-auto space-y-6">
+        <h1 class="text-2xl font-bold mb-6">지구과학 데이터 분석실</h1>
+        
         <div class="glass p-6">
             <h2 class="text-sm font-semibold mb-4 text-gray-500 uppercase">2. 데이터 업로드 (CSV)</h2>
             <input type="file" id="csvFile" class="block w-full text-sm">
         </div>
 
         <div id="analysisSection" class="hidden glass p-6">
-            <div id="yearTabs" class="flex gap-2 mb-4 overflow-x-auto pb-2"></div>
+            <div id="yearTabs" class="flex gap-2 mb-6 overflow-x-auto pb-2"></div>
             <div class="h-64"><canvas id="mainChart"></canvas></div>
         </div>
+
+        <div class="glass p-6">
+            <h2 class="text-sm font-semibold mb-4 text-gray-500 uppercase">3. 심층 탐구 리포트</h2>
+            <div class="space-y-4">
+                <textarea id="q1" class="w-full h-24 p-3 border rounded-lg text-sm bg-gray-50" placeholder="Q1. 그래프에서 가장 눈에 띄는 특이점은 언제인가요?"></textarea>
+                <textarea id="q2" class="w-full h-24 p-3 border rounded-lg text-sm bg-gray-50" placeholder="Q2. 데이터의 전반적인 경향성은 어떠한가요?"></textarea>
+                <textarea id="q3" class="w-full h-32 p-3 border rounded-lg text-sm bg-gray-50" placeholder="Q3. [조사활동] 원인 분석 (과학적 근거 제시)"></textarea>
+                <button onclick="submitReport()" class="w-full py-4 bg-black text-white rounded-lg font-bold">최종 제출</button>
+            </div>
+        </div>
     </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDURyiBbY-adOrAI6ZnsLqI13cW95dR5Lw",
+            authDomain: "climate-data-analysis-lab.firebaseapp.com",
+            projectId: "climate-data-analysis-lab",
+            storageBucket: "climate-data-analysis-lab.firebasestorage.app",
+            messagingSenderId: "190687339710",
+            appId: "1:190687339710:web:ca4df028ad3192029e6aef",
+            measurementId: "G-3PFNTDDGK5"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.submitReport = async () => {
+            try {
+                await addDoc(collection(db, "reports"), {
+                    q1: document.getElementById('q1').value,
+                    q2: document.getElementById('q2').value,
+                    q3: document.getElementById('q3').value,
+                    date: new Date().toLocaleDateString()
+                });
+                alert("제출 완료!");
+            } catch(e) { alert("저장 오류 발생"); }
+        };
+    </script>
 
     <script>
         let rawData = [];
@@ -33,15 +74,14 @@
         document.getElementById('csvFile').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             const buffer = await file.arrayBuffer();
-            // EUC-KR 인코딩 처리
             const text = new TextDecoder('euc-kr').decode(buffer);
-            const lines = text.split('\n');
+            const lines = text.split(/\r?\n/);
 
             rawData = [];
             lines.forEach(line => {
                 const cols = line.split(',').map(c => c.trim());
-                // 첫 컬럼이 4자리 연도인 데이터만 추출
-                if (/^\d{4}$/.test(cols[0])) {
+                // 첫 열이 4자리 숫자(연도)이고, 1월~12월 데이터가 존재하는 경우만
+                if (/^\d{4}$/.test(cols[0]) && cols.length >= 13) {
                     rawData.push({
                         year: cols[0],
                         months: cols.slice(1, 13).map(n => parseFloat(n) || 0)
@@ -63,14 +103,13 @@
         function selectYear(index, el) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             if(el) el.classList.add('active');
-            
             const ctx = document.getElementById('mainChart').getContext('2d');
             if(myChart) myChart.destroy();
             myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],
-                    datasets: [{ label: '악기상 횟수', data: rawData[index].months, backgroundColor: '#000' }]
+                    datasets: [{ label: '악기상 횟수', data: rawData[index].months, backgroundColor: '#37352f' }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
