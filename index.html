@@ -145,8 +145,9 @@
         window.setView = (v) => {
             document.getElementById('studentView').classList.toggle('hidden', v !== 'student');
             document.getElementById('teacherView').classList.toggle('hidden', v !== 'teacher');
+            
+            // 교사 대시보드를 누를 때마다 무조건 인증 화면을 강제로 먼저 보여주도록 설정
             if(v === 'teacher') {
-                // 교사 대시보드 진입 시 항상 인증 화면을 먼저 보여주도록 초기화
                 document.getElementById('authSection').classList.remove('hidden');
                 document.getElementById('dashboardSection').classList.add('hidden');
                 document.getElementById('adminCode').value = "";
