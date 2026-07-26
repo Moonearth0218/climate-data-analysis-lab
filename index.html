@@ -75,7 +75,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
           apiKey: "AIzaSyDURyiBbY-adOrAI6ZnsLqI13cW95dR5Lw",
@@ -109,13 +109,37 @@
             list.innerHTML = "불러오는 중...";
             const snapshot = await getDocs(collection(db, "reports"));
             list.innerHTML = "";
-            snapshot.forEach(doc => {
-                const s = doc.data();
-                list.innerHTML += `<div class="p-4 border rounded-lg bg-white shadow-sm text-sm">
-                    <p class="font-bold text-gray-700">${s.student}</p>
-                    <p class="text-gray-600 mt-1">${s.q1}</p>
+            if(snapshot.empty) {
+                list.innerHTML = "<p class='text-gray-500 text-sm'>제출된 리포트가 없습니다.</p>";
+                return;
+            }
+            snapshot.forEach(documentItem => {
+                const s = documentItem.data();
+                const docId = documentItem.id;
+                list.innerHTML += `<div id="card-${docId}" class="p-4 border rounded-lg bg-white shadow-sm text-sm flex justify-between items-start">
+                    <div>
+                        <p class="font-bold text-gray-700">${s.student} <span class="text-xs text-gray-400 font-normal">(${s.date || ''})</span></p>
+                        <p class="text-gray-600 mt-2"><strong>Q1:</strong> ${s.q1}</p>
+                        <p class="text-gray-600 mt-1"><strong>Q2:</strong> ${s.q2}</p>
+                        <p class="text-gray-600 mt-1"><strong>Q3:</strong> ${s.q3}</p>
+                    </div>
+                    <button onclick="deleteSubmission('${docId}')" class="px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 transition">삭제</button>
                 </div>`;
             });
+        };
+
+        window.deleteSubmission = async (docId) => {
+            if(confirm("정말 이 학생의 답변을 삭제하시겠습니까?")) {
+                try {
+                    await deleteDoc(doc(db, "reports", docId));
+                    // 화면에서 해당 카드 즉시 제거
+                    const card = document.getElementById(`card-${docId}`);
+                    if(card) card.remove();
+                    alert("삭제되었습니다.");
+                } catch(e) {
+                    alert("삭제 오류: " + e.message);
+                }
+            }
         };
 
         window.setView = (v) => {
